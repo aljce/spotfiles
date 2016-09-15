@@ -1,0 +1,22 @@
+dirs graphical
+  * -> .config/&
+git
+  * > .&
+msmtp
+  * -> .&
+npm
+  * -> .&
+offlineimap
+  * -> .&
+rtorrentrc
+  * -> .&
+spacemacs.d
+  * -> .spacemacs.d/&
+stack
+  * -> .stack/&
+x graphical
+  resources/* -> .&
+  xmobar/* -> .&
+  xmonad-config/app/* -> .xmonad/&
+zsh
+  * -> .&
