@@ -1,16 +1,14 @@
-#[macro_use]
-extern crate nom;
-
-pub use self::lexer::*;
-pub mod lexer;
-
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
+pub mod lexer;
+
+use lexer::{Lex};
+
 fn main() {
-    let path = Path::new("tmp");
+    let path = Path::new("/home/kyle/repos/spotfiles/config");
     let display = path.display();
 
     let mut file = match File::open(&path) {
@@ -24,6 +22,5 @@ fn main() {
                            why.description()),
         Ok(_) => ()
     };
-    println!("{}",s);
-    println!("{:?}",groups_p(s.as_bytes()))
+    println!("{:?}", &s.lex());
 }
