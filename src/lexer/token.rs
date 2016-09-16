@@ -47,7 +47,7 @@ impl<'a> Token<'a> {
     pub fn newline(loc: Location) -> Token<'a> {
         Token {
             kind:     TokenKind::Newline,
-            location: loc,
+            location: loc.clone(),
             length:   Length(1)
         }
     }
@@ -58,7 +58,7 @@ impl<'a> Token<'a> {
         };
         Token {
             kind:     TokenKind::Move(move_k),
-            location: loc,
+            location: loc.clone(),
             length:   Length(len)
         }
     }

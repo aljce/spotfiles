@@ -1,17 +1,18 @@
 use std::str::Chars;
 use lexer::token::{Location, Token};
+use std::cell::Cell;
 
 #[derive(Clone)]
 struct CharsLoc<'a> {
     char_stream: Chars<'a>,
-    location:     Location
+    location:    Cell<Location>
 }
 
 impl<'a> CharsLoc<'a> {
     fn new<'b>(input: &'b str) -> CharsLoc<'b> {
         CharsLoc {
             char_stream: input.chars(),
-            location:    Location { line: 0, column: 0 },
+            location:    Cell::new(Location { line: 0, column: 0 }),
         }
     }
 }
@@ -22,11 +23,17 @@ impl<'a> Iterator for CharsLoc<'a> {
         let may_char = self.char_stream.next();
         match may_char {
             Some('\n') => {
-                self.location.line += 1;
-                self.location.column = 0;
+                self.location.set(Location {
+                    line:   self.location.get().line + 1,
+                    column: 0
+                })
             },
             Some(_) => {
-                self.location.column += 1;
+                let cur_loc = self.location.get();
+                self.location.set(Location {
+                    line:   cur_loc.line,
+                    column: cur_loc.column + 1
+                })
             },
             None => ()
         }
@@ -57,18 +64,18 @@ impl<'a> TokenIterator<'a> {
 
     fn line_comment(&mut self) -> Token<'a> {
         self.chars_loc.take_while(|c| c != &'\n');
-        Token::newline(self.chars_loc.location)
+        Token::newline(self.chars_loc.location.get())
     }
 
     fn newline(&mut self) -> Token<'a> {
         self.chars_loc.next();
-        Token::newline(self.chars_loc.location)
+        Token::newline(self.chars_loc.location.get())
     }
 
     fn name(&mut self) -> Token<'a> {
         let chars = self.chars_loc.char_stream.as_str();
         let len   = self.chars_loc.take_while(|&c| !is_reserved(c)).count();
-        Token::name(self.chars_loc.location,&chars[..len])
+        Token::name(self.chars_loc.location.get(),&chars[..len])
     }
 
 }
