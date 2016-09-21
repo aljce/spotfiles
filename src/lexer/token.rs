@@ -15,7 +15,7 @@ pub enum TokenKind<'a> {
 
 #[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub struct Location {
-    pub line: usize,
+    pub line:   usize,
     pub column: usize
 }
 
