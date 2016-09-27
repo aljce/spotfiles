@@ -1,3 +1,5 @@
+use std::fmt::*;
+
 #[derive(Debug, PartialEq, PartialOrd)]
 pub enum MoveKind {
     Link,
@@ -22,11 +24,35 @@ pub struct Location {
 #[derive(Debug, PartialEq, PartialOrd)]
 pub struct Length(pub usize);
 
+impl Display for Length {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            Length(len) => write!(f,"{}",len + 1)
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, PartialOrd)]
 pub struct Token<'a> {
     kind:     TokenKind<'a>,
     location: Location,
     length:   Length
+}
+
+impl<'a> Display for Token<'a> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        use lexer::token::TokenKind::*;
+        use lexer::token::MoveKind::*;
+        match self.kind {
+           Indent     => write!(f,"INDENT {}",self.length),
+           DeIndent   => write!(f,"DEINDENT {}",self.length),
+           Newline    => write!(f,"NEWLINE"),
+           Move(Link) => write!(f,"LINK"),
+           Move(Copy) => write!(f,"COPY"),
+           Name(name) => write!(f,"NAME {}",name),
+        }
+    }
+
 }
 
 impl<'a> Token<'a> {

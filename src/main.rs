@@ -1,3 +1,5 @@
+extern crate itertools;
+
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
@@ -22,5 +24,7 @@ fn main() {
                            why.description()),
         Ok(_) => ()
     };
-    println!("{:?}", &s.lex());
+    for token in &s.lex() {
+        println!("{}",token)
+    }
 }
