@@ -25,6 +25,6 @@ fn main() {
         Ok(_) => ()
     };
     for token in &s.lex() {
-        println!("{}",token)
+        println!("{:?}",token)
     }
 }

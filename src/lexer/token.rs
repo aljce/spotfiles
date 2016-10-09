@@ -7,12 +7,32 @@ pub enum MoveKind {
 }
 
 #[derive(Debug, PartialEq, PartialOrd)]
+pub enum NamePart<A> {
+    Ident(A),
+    Star,
+    Ampersand,
+    Slash
+}
+
+impl<'a> Display for NamePart<&'a str> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        use self::NamePart::*;
+        write!(f,"{}",match *self {
+            Ident(ref ident) => ident,
+            Star =>      "STAR",
+            Ampersand => "AMPERSAND",
+            Slash =>     "SLASH"
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum TokenKind<'a> {
     Indent,
     DeIndent,
     Newline,
     Move(MoveKind),
-    Name(&'a str)
+    Name(Vec<NamePart<&'a str>>)
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
@@ -21,13 +41,20 @@ pub struct Location {
     pub column: usize
 }
 
+// impl Location {
+//     fn back_one(mut self) -> Location {
+//         self.column -= 1;
+//         self
+//     }
+// }
+
 #[derive(Debug, PartialEq, PartialOrd)]
 pub struct Length(pub usize);
 
 impl Display for Length {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
-            Length(len) => write!(f,"{}",len + 1)
+            Length(len) => write!(f,"{}",len)
         }
     }
 }
@@ -41,18 +68,26 @@ pub struct Token<'a> {
 
 impl<'a> Display for Token<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        use lexer::token::TokenKind::*;
-        use lexer::token::MoveKind::*;
+        use self::TokenKind::*;
+        use self::MoveKind::*;
         match self.kind {
            Indent     => write!(f,"INDENT {}",self.length),
            DeIndent   => write!(f,"DEINDENT {}",self.length),
            Newline    => write!(f,"NEWLINE"),
            Move(Link) => write!(f,"LINK"),
            Move(Copy) => write!(f,"COPY"),
-           Name(name) => write!(f,"NAME {}",name),
+           Name(ref nps) => {
+               try!(write!(f,"<"));
+               for (index,np) in nps.iter().enumerate() {
+                   try!(write!(f,"{}",np));
+                   if index % 2 == 1 {
+                       try!(write!(f,","))
+                   }
+               }
+               write!(f,">")
+           },
         }
     }
-
 }
 
 impl<'a> Token<'a> {
@@ -70,13 +105,15 @@ impl<'a> Token<'a> {
             length:   Length(depth)
         }
     }
+
     pub fn newline(loc: Location) -> Token<'a> {
         Token {
             kind:     TokenKind::Newline,
-            location: loc.clone(),
+            location: loc,
             length:   Length(1)
         }
     }
+
     pub fn move_kind(loc: Location, move_k: MoveKind) -> Token<'a> {
         let len = match move_k {
             MoveKind::Link => 2,
@@ -84,15 +121,21 @@ impl<'a> Token<'a> {
         };
         Token {
             kind:     TokenKind::Move(move_k),
-            location: loc.clone(),
+            location: loc,
             length:   Length(len)
         }
     }
-    pub fn name(loc: Location, input: &'a str) -> Token<'a> {
+    pub fn name(loc: Location, input: Vec<NamePart<&'a str>>) -> Token<'a> {
+        use self::NamePart::*;
+        let len = input.iter().map(|np| {
+            match *np {
+                Ident(ident) => ident.len(),
+                _ => 1
+        }}).sum();
         Token {
             kind:     TokenKind::Name(input),
             location: loc,
-            length:   Length(input.len())
+            length:   Length(len)
         }
     }
 }

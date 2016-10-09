@@ -1,7 +1,8 @@
 use std::str::CharIndices;
-use lexer::token::{Location, MoveKind, Token};
-use self::State::*;
 use itertools::Itertools;
+use lexer::token::{Location, MoveKind, Token, NamePart};
+use self::State::*;
+use std::cmp::Ordering::*;
 
 #[derive(Clone)]
 struct CharsLoc<'a> {
@@ -19,8 +20,8 @@ impl<'a> CharsLoc<'a> {
                                     column: 0 },
         }
     }
-    fn take_str(&self, start: usize, end: usize) -> &'a str {
-        &self.chars[start .. end + 1]
+    fn take_str(&self, slice: &Slice) -> &'a str {
+        &self.chars[slice.start .. slice.end + 1]
     }
 }
 
@@ -42,20 +43,25 @@ impl<'a> Iterator for CharsLoc<'a> {
     }
 }
 
+struct Slice {
+    start: usize,
+    end:   usize
+}
+
 enum State {
     Newline,
-    Normal
+    Normal,
+    PartialName {
+        start_loc: Location,
+        slices: Vec<NamePart<Slice>>
+    }
 }
 
 pub struct TokenIterator<'a> {
     chars_loc:   CharsLoc<'a>,
     state:       State,
     indentation: usize,
-    token_stack: Option<Token<'a>>
-}
-
-fn is_reserved(c: char) -> bool {
-    c == ' ' || c == '\t' || c == '\n' || c == '#'
+    token_stack: Vec<Token<'a>>
 }
 
 impl<'a> TokenIterator<'a> {
@@ -64,7 +70,7 @@ impl<'a> TokenIterator<'a> {
             chars_loc:   CharsLoc::new(input),
             state:       Newline,
             indentation: 0,
-            token_stack: None
+            token_stack: Vec::new()
         }
     }
 
@@ -86,55 +92,117 @@ impl<'a> TokenIterator<'a> {
         match self.state {
             Newline => {
                 let depth = (&mut self.chars_loc)
-                    .take_while_ref(|&(_,c)| c == '\t' && c == ' ')
-                    .count();
+                    .take_while_ref(|&(_,c)| c == '\t' || c == ' ')
+                    .count() + 1;
                 self.state = Normal;
                 let indentation = self.indentation;
-                if indentation == depth {
-                    self.next()
-                } else {
-                    self.indentation = depth;
-                    Some(Token::indent(self.chars_loc.location, depth - indentation))
+                match indentation.cmp(&depth) {
+                    Less => {
+                        self.indentation = depth;
+                        Some(Token::indent(self.chars_loc.location, depth - indentation))
+                    },
+                    Equal => self.next(),
+                    Greater => {
+                        self.indentation = depth;
+                        Some(Token::de_indent(self.chars_loc.location, indentation - depth))
+                    }
                 }
+            },
+            PartialName { ref slices, ref start_loc } => {
+                use lexer::token::NamePart::*;
+                let with_strs = (*slices).iter().map(
+                    | part | {
+                        match *part {
+                            Ident(ref slice) => Ident(self.chars_loc.take_str(slice)),
+                            Star => Star,
+                            Ampersand => Ampersand,
+                            Slash => Slash
+                        }
+                    }
+                ).collect();
+                Some(Token::name(*start_loc, with_strs))
             },
             Normal => self.next()
         }
     }
 
-    fn name(&mut self, start: usize) -> Token<'a> {
-        let location = self.chars_loc.location;
-        let end = (&mut self.chars_loc)
-            .take_while_ref(|&(_,c)| !is_reserved(c))
-            .last()
-            .map(|(end,_)| end);
-        let token = Token::name(location,
-                                self.chars_loc.take_str(start, end.unwrap_or(start)));
-        match self.state {
-            Newline => {
-                self.state = Normal;
-                let indentation = self.indentation;
-                self.indentation = 0;
-                self.token_stack = Some(token);
-                Token::de_indent(self.chars_loc.location, indentation)
-            },
-            Normal => token
-        }
-    }
-
-    fn move_kind(&mut self, start: usize, move_kind: MoveKind) -> Token<'a> {
+    fn move_kind(&mut self, start: usize, move_kind: MoveKind) -> Option<Token<'a>> {
         self.state = Normal;
         match move_kind {
             MoveKind::Copy => match self.chars_loc.next() {
                 Some((_,c)) if c == ' ' || c == '\t' =>
-                    Token::move_kind(self.chars_loc.location, move_kind),
+                    Some(Token::move_kind(self.chars_loc.location, move_kind)),
                 _ => self.name(start)
 
             },
             MoveKind::Link => match self.chars_loc.next() {
                 Some((_,c)) if c == '>' =>
-                    Token::move_kind(self.chars_loc.location, move_kind),
+                    Some(Token::move_kind(self.chars_loc.location, move_kind)),
                 _ => self.name(start)
             }
+        }
+    }
+
+    fn setPartial(&mut self, name_part: NamePart<Slice>) -> Option<Token<'a>> {
+        let mut slices = Vec::new();
+        slices.push(name_part);
+        self.state = PartialName {
+            start_loc: self.chars_loc.location,
+            slices:    slices
+        };
+        let indentation = self.indentation;
+        match self.state {
+            Newline if indentation != 0 => {
+                self.indentation = 0;
+                Some(Token::de_indent(self.chars_loc.location, indentation))
+            },
+            _ => self.next()
+        }
+    }
+
+    fn single_name(&mut self, name_part: NamePart<Slice>) -> Option<Token<'a>> {
+        match self.state {
+            PartialName { start_loc, ref mut slices } => {
+                slices.push(name_part);
+            },
+            _ => return self.setPartial(name_part)
+        }
+        self.next()
+    }
+
+    fn name(&mut self, index: usize) -> Option<Token<'a>> {
+        use lexer::token::NamePart::*;
+        match self.state {
+            PartialName { start_loc, ref mut slices } => {
+                match slices.last_mut() {
+                    Some(name_part) => {
+                        if let Ident(ref mut slice) = *name_part {
+                            slice.end = index;
+                        }
+                    },
+                    _ => {
+                        slices.push(Ident(Slice {
+                            start: index,
+                            end:   index
+                        }))
+                    }
+                }
+            },
+            _ => return self.setPartial(Ident(Slice {
+                start: index,
+                end:   index
+            }))
+        }
+        self.next()
+    }
+
+    fn finalizer(&mut self) -> Option<Token<'a>> {
+        let indentation = self.indentation;
+        if indentation > 0 {
+            self.indentation = 0;
+            Some(Token::de_indent(self.chars_loc.location, indentation))
+        } else {
+            None
         }
     }
 }
@@ -142,16 +210,19 @@ impl<'a> TokenIterator<'a> {
 impl<'a> Iterator for TokenIterator<'a> {
     type Item = Token<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.token_stack.take().or(match self.chars_loc.next() {
+        self.token_stack.pop().or(match self.chars_loc.next() {
             Some((index,c)) => match c {
                 '#'  => Some(self.line_comment()),
                 '\n' => Some(self.newline()),
                 ' ' | '\t' => self.white_space(),
-                '>'  => Some(self.move_kind(index,MoveKind::Copy)),
-                '-'  => Some(self.move_kind(index,MoveKind::Link)),
-                _    => Some(self.name(index))
+                '>'  => self.move_kind(index,MoveKind::Copy),
+                '-'  => self.move_kind(index,MoveKind::Link),
+                '*'  => self.single_name(NamePart::Star),
+                '&'  => self.single_name(NamePart::Ampersand),
+                '\\' => self.single_name(NamePart::Slash),
+                _    => self.name(index)
             },
-            None => None
+            None => self.finalizer()
         })
     }
 }
