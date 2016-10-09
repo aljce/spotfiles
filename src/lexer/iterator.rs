@@ -143,7 +143,7 @@ impl<'a> TokenIterator<'a> {
         }
     }
 
-    fn setPartial(&mut self, name_part: NamePart<Slice>) -> Option<Token<'a>> {
+    fn set_partial(&mut self, name_part: NamePart<Slice>) -> Option<Token<'a>> {
         let mut slices = Vec::new();
         slices.push(name_part);
         self.state = PartialName {
@@ -165,7 +165,7 @@ impl<'a> TokenIterator<'a> {
             PartialName { start_loc, ref mut slices } => {
                 slices.push(name_part);
             },
-            _ => return self.setPartial(name_part)
+            _ => return self.set_partial(name_part)
         }
         self.next()
     }
@@ -174,21 +174,36 @@ impl<'a> TokenIterator<'a> {
         use lexer::token::NamePart::*;
         match self.state {
             PartialName { start_loc, ref mut slices } => {
-                match slices.last_mut() {
+                // match slices.last_mut() {
+                //     Some(name_part) => {
+                //         if let Ident(ref mut slice) = *name_part {
+                //             slice.end = index;
+                //         }
+                //     },
+                //     _ => {
+                //         slices.push(Ident(Slice {
+                //             start: index,
+                //             end:   index
+                //         }))
+                //     }
+                // }
+                let was_none = match slices.last_mut() {
                     Some(name_part) => {
                         if let Ident(ref mut slice) = *name_part {
                             slice.end = index;
-                        }
+                        };
+                        false
                     },
-                    _ => {
-                        slices.push(Ident(Slice {
-                            start: index,
-                            end:   index
-                        }))
-                    }
+                    _ => true
+                };
+                if was_none {
+                    slices.push(Ident(Slice {
+                        start: index,
+                        end:   index
+                    }));
                 }
             },
-            _ => return self.setPartial(Ident(Slice {
+            _ => return self.set_partial(Ident(Slice {
                 start: index,
                 end:   index
             }))

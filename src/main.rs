@@ -24,7 +24,11 @@ fn main() {
                            why.description()),
         Ok(_) => ()
     };
-    for token in &s.lex() {
+    let tokens = &s.lex();
+    for token in tokens {
         println!("{:?}",token)
+    }
+    for token in tokens {
+        println!("{}",token)
     }
 }
