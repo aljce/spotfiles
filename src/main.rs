@@ -24,11 +24,8 @@ fn main() {
                            why.description()),
         Ok(_) => ()
     };
-    let tokens = &s.lex();
-    for token in tokens {
-        println!("{:?}",token)
-    }
-    for token in tokens {
+    println!("{}",s);
+    for token in s.lex() {
         println!("{}",token)
     }
 }

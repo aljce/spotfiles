@@ -19,9 +19,9 @@ impl<'a> Display for NamePart<&'a str> {
         use self::NamePart::*;
         write!(f,"{}",match *self {
             Ident(ref ident) => ident,
-            Star =>      "STAR",
-            Ampersand => "AMPERSAND",
-            Slash =>     "SLASH"
+            Star =>      "*",
+            Ampersand => "&",
+            Slash =>     "/"
         })
     }
 }
@@ -40,13 +40,6 @@ pub struct Location {
     pub line:   usize,
     pub column: usize
 }
-
-// impl Location {
-//     fn back_one(mut self) -> Location {
-//         self.column -= 1;
-//         self
-//     }
-// }
 
 #[derive(Debug, PartialEq, PartialOrd)]
 pub struct Length(pub usize);
@@ -79,9 +72,10 @@ impl<'a> Display for Token<'a> {
            Name(ref nps) => {
                try!(write!(f,"<"));
                for (index,np) in nps.iter().enumerate() {
-                   try!(write!(f,"{}",np));
-                   if index % 2 == 1 {
-                       try!(write!(f,","))
+                   if index < nps.len() - 1 {
+                       try!(write!(f,"{}@",np))
+                   } else {
+                       try!(write!(f,"{}",np))
                    }
                }
                write!(f,">")

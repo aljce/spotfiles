@@ -11,13 +11,16 @@ offlineimap
   * -> .&
 rtorrentrc
   * -> .&
-spacemacs.d
+spacemacs
   * -> .spacemacs.d/&
+  sub spacemacs -> .emacs.d
 stack
   * -> .stack/&
 x graphical
   resources/* -> .&
-   xmobar/* -> .&
+  xmobar/* -> .&
   xmonad-config/app/* -> .xmonad/&
 zsh
   * -> .&
+  sub antigen
+    antigen.zsh -> &
